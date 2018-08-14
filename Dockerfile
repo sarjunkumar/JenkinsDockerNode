@@ -1,41 +1,28 @@
-FROM       ubuntu:18.04
-MAINTAINER Arjun
+FROM frekele/java:jdk8
 
-RUN apt-get update
+MAINTAINER frekele <leandro.freitas@softdevelop.com.br>
 
-RUN apt-get install -y openssh-server
-RUN mkdir /var/run/sshd
+ENV ANT_VERSION=1.10.3
+ENV ANT_HOME=/opt/ant
 
-RUN echo 'root:root' |chpasswd
+# change to tmp folder
+WORKDIR /tmp
 
-RUN sed -ri 's/^#?PermitRootLogin\s+.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
+# Download and extract apache ant to opt folder
+RUN wget --no-check-certificate --no-cookies http://archive.apache.org/dist/ant/binaries/apache-ant-${ANT_VERSION}-bin.tar.gz \
+    && wget --no-check-certificate --no-cookies http://archive.apache.org/dist/ant/binaries/apache-ant-${ANT_VERSION}-bin.tar.gz.sha512 \
+    && echo "$(cat apache-ant-${ANT_VERSION}-bin.tar.gz.sha512) apache-ant-${ANT_VERSION}-bin.tar.gz" | sha512sum -c \
+    && tar -zvxf apache-ant-${ANT_VERSION}-bin.tar.gz -C /opt/ \
+    && ln -s /opt/apache-ant-${ANT_VERSION} /opt/ant \
+    && rm -f apache-ant-${ANT_VERSION}-bin.tar.gz \
+    && rm -f apache-ant-${ANT_VERSION}-bin.tar.gz.sha512
 
-RUN mkdir /root/.ssh
+# add executables to path
+RUN update-alternatives --install "/usr/bin/ant" "ant" "/opt/ant/bin/ant" 1 && \
+    update-alternatives --set "ant" "/opt/ant/bin/ant" 
 
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Add the files
+ADD rootfs /
 
-EXPOSE 2222
-
-ENV LANG C.UTF-8
-
-RUN { \
-                echo '#!/bin/sh'; \
-                echo 'set -e'; \
-                echo; \
-                echo 'dirname "$(dirname "$(readlink -f "$(which javac || which java)")")"'; \
-        } > /usr/local/bin/docker-java-home \
-        && chmod +x /usr/local/bin/docker-java-home
-ENV JAVA_HOME /usr/lib/jvm/java-1.8-openjdk
-ENV PATH $PATH:/usr/lib/jvm/java-1.8-openjdk/jre/bin:/usr/lib/jvm/java-1.8-openjdk/bin
-
-ENV JAVA_VERSION 8u111
-ENV JAVA_ALPINE_VERSION 8.111.14-r0
-
-RUN set -x \
-        && apk add --no-cache \
-                openjdk8="$JAVA_ALPINE_VERSION" \
-        && [ "$JAVA_HOME" = "$(docker-java-home)" ]
-
-CMD    ["/usr/sbin/sshd", "-D"]
+# change to root folder
+WORKDIR /root
